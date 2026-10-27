@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MUTE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; cursor: none; }
+  #stage {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    will-change: transform;
+  }
+  #video {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    filter: contrast(1.15) brightness(0.85);
+  }
+  #fx {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 2; pointer-events: none;
+  }
+  #hud {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 4; pointer-events: none;
+  }
+  #scanlines {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 3; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+  }
+  #logo {
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 32px; font-weight: 200;
+    letter-spacing: 20px;
+    color: rgba(255,255,255,0.08);
+    text-transform: uppercase;
+  }
+  #error-screen {
+    display: none; position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #000; z-index: 100;
+    color: rgba(255,255,255,0.3);
+    font-size: 16px;
+    justify-content: center; align-items: center;
+    text-align: center; font-family: monospace;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="fx"></canvas>
+</div>
+<canvas id="hud"></canvas>
+<div id="scanlines"></div>
+<div id="logo">MUTE</div>
+<div id="error-screen"></div>
+
+<script src="face-api.min.js"></script>
+<script>
+(async function() {
+  const video = document.getElementById('video');
+  const stage = document.getElementById('stage');
+  const fxCanvas = document.getElementById('fx');
+  const fxCtx = fxCanvas.getContext('2d');
+  const hudCanvas = document.getElementById('hud');
+  const hudCtx = hudCanvas.getContext('2d');
+  const errorScreen = document.getElementById('error-screen');
+
+  function showError(msg) {
+    errorScreen.textContent = msg;
+    errorScreen.style.display = 'flex';
+  }
+
+  function resize() {
+    fxCanvas.width = window.innerWidth;
+    fxCanvas.height = window.innerHeight;
+    hudCanvas.width = window.innerWidth;
+    hudCanvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromUri('./models');
+  } catch (e) { showError('Model error: ' + e.message); return; }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+  } catch (e) { showError('Camera: ' + e.message); return; }
+
+  const detCanvas = document.createElement('canvas');
+  const detCtx = detCanvas.getContext('2d', { willReadFrequently: true });
+  const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.2 });
+  const MAX_FACES = 15;
+
+  const CYAN = [0, 255, 200];
+  const AMBER = [255, 180, 40];
+  const WHITE = [255, 255, 255];
+
+  function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+
+
+  const hexChars = '0123456789ABCDEF';
+  function randHex(len) {
+    let s = '';
+    for (let i = 0; i < len; i++) s += hexChars[Math.random() * 16 | 0];
+    return s;
+  }
+
+  const faceData = [];
+  function getFaceData(i) {
+    if (!faceData[i]) {
+      faceData[i] = {
+        id: randHex(8),
+        scanY: 0,
+        codes: Array.from({length: 5}, () => randHex(4)),
+        codeOffset: 0,
+        pulse: 0,
+        smoothBox: null,
+      };
+    }
+    return faceData[i];
+  }
+
+  const now = () => performance.now() / 1000;
+
+  function drawFaceBox(ctx, x, y, w, h, fd, t) {
+    const pulse = (Math.sin(t * 3) * 0.15 + 0.85);
+    const cornerLen = Math.min(w, h) * 0.25;
+
+    ctx.strokeStyle = rgba(CYAN, 0.25 * pulse);
+    ctx.shadowColor = rgba(CYAN, 0.4);
+    ctx.shadowBlur = 20;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, h);
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = rgba(CYAN, 0.9 * pulse);
+    ctx.lineWidth = 2.5;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y + cornerLen); ctx.lineTo(x, y); ctx.lineTo(x + cornerLen, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + w - cornerLen, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cornerLen);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + w, y + h - cornerLen); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w - cornerLen, y + h);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + cornerLen, y + h); ctx.lineTo(x, y + h); ctx.lineTo(x, y + h - cornerLen);
+    ctx.stroke();
+
+    fd.scanY = (fd.scanY + 2) % h;
+    const sy = y + fd.scanY;
+    const grad = ctx.createLinearGradient(x, sy, x + w, sy);
+    grad.addColorStop(0, rgba(CYAN, 0));
+    grad.addColorStop(0.3, rgba(CYAN, 0.35 * pulse));
+    grad.addColorStop(0.7, rgba(CYAN, 0.35 * pulse));
+    grad.addColorStop(1, rgba(CYAN, 0));
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, sy); ctx.lineTo(x + w, sy);
+    ctx.stroke();
+
+    const cx = x + w / 2, cy = y + h / 2;
+    const chSize = 8;
+    ctx.strokeStyle = rgba(WHITE, 0.2);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - chSize, cy); ctx.lineTo(cx + chSize, cy);
+    ctx.moveTo(cx, cy - chSize); ctx.lineTo(cx, cy + chSize);
+    ctx.stroke();
+  }
+
+  function drawFaceData(ctx, x, y, w, h, fd, t) {
+    ctx.font = '10px monospace';
+
+    const idText = `ID:${fd.id}`;
+    ctx.fillStyle = rgba(CYAN, 0.6);
+    ctx.fillText(idText, x, y - 8);
+
+    const barW = 40, barH = 3;
+    const barX = x + w - barW, barY = y - 10;
+    ctx.fillStyle = rgba(WHITE, 0.1);
+    ctx.fillRect(barX, barY, barW, barH);
+    const fill = 0.7 + Math.sin(t * 2) * 0.15;
+    ctx.fillStyle = rgba(CYAN, 0.7);
+    ctx.fillRect(barX, barY, barW * fill, barH);
+
+    ctx.font = '9px monospace';
+    fd.codeOffset = (fd.codeOffset + 0.3) % (fd.codes.length * 14);
+
+    for (let i = 0; i < fd.codes.length; i++) {
+      const cy = y + 15 + i * 14 - (fd.codeOffset % 14);
+      if (cy < y || cy > y + h) continue;
+      const alpha = 0.15 + Math.sin(t * 4 + i) * 0.1;
+      ctx.fillStyle = rgba(AMBER, alpha + 0.1);
+      ctx.fillText(fd.codes[i], x + w + 8, cy);
+    }
+
+    if (Math.random() < 0.02) {
+      fd.codes[Math.random() * fd.codes.length | 0] = randHex(4);
+    }
+
+    const measurements = Math.min(4, Math.floor(h / 25));
+    for (let i = 0; i < measurements; i++) {
+      const my = y + 12 + i * (h / (measurements + 1));
+      const mw = 15 + Math.sin(t * 2 + i * 1.5) * 8;
+      ctx.strokeStyle = rgba(CYAN, 0.15);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, my); ctx.lineTo(x - 5 - mw, my);
+      ctx.stroke();
+      ctx.fillStyle = rgba(CYAN, 0.2);
+      ctx.font = '7px monospace';
+      ctx.fillText((Math.random() * 99 | 0).toString().padStart(2, '0'), x - 5 - mw - 16, my + 3);
+    }
+  }
+
+
+  function drawHUD(ctx, W, H, faceCount, t) {
+    ctx.font = '10px monospace';
+
+    ctx.fillStyle = rgba(CYAN, 0.25);
+    ctx.fillText(`MUTE://FACE_TRACK v2.1`, 20, 25);
+    ctx.fillText(`SYS:ACTIVE  FACES:${faceCount}`, 20, 40);
+    ctx.fillText(`${new Date().toLocaleTimeString('es-MX', {hour12:false})}`, 20, 55);
+    if (SWEEP_ON) {
+      const scanning = sweep.state === 'SCAN';
+      ctx.fillStyle = rgba(scanning ? AMBER : CYAN, scanning ? 0.45 : 0.25);
+      ctx.fillText(`SCAN:${scanning ? 'SWEEP' : 'LOCK'}`, 20, 70);
+    }
+
+    const bars = 5;
+    for (let i = 0; i < bars; i++) {
+      const bh = 4 + i * 3;
+      const alpha = (i < bars - 1 || Math.sin(t * 2) > 0) ? 0.3 : 0.08;
+      ctx.fillStyle = rgba(CYAN, alpha);
+      ctx.fillRect(W - 30 + i * 5, 25 - bh, 3, bh);
+    }
+
+    ctx.strokeStyle = rgba(WHITE, 0.06);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(15, H - 60); ctx.lineTo(15, H - 15); ctx.lineTo(60, H - 15);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(W - 15, H - 60); ctx.lineTo(W - 15, H - 15); ctx.lineTo(W - 60, H - 15);
+    ctx.stroke();
+  }
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  const SWEEP_ON         = true;
+  const SWEEP_ZOOM       = 1.22;
+  // si no hay caras en 8 seg empieza el barrido
+  const IDLE_BEFORE_SCAN = 8;
+  const SWEEP_PERIOD     = 26;
+  const SWEEP_RAMP       = 3;
+  const SWEEP_EASE       = 0.06;
+
+  const SWEEP_TRAVEL = ((SWEEP_ZOOM - 1) / (2 * SWEEP_ZOOM)) * 100 * 0.9;
+
+  const sweep = { state: 'LOCK', lastFaceAt: 0, offset: 0 };
+
+  function updateSweep(t, faceCount) {
+    if (!SWEEP_ON) return;
+    if (faceCount > 0) sweep.lastFaceAt = t;
+
+    const idleFor = t - sweep.lastFaceAt;
+    let target = 0;
+
+    if (idleFor > IDLE_BEFORE_SCAN) {
+      sweep.state = 'SCAN';
+      const elapsed = idleFor - IDLE_BEFORE_SCAN;
+      const ramp = Math.min(1, elapsed / SWEEP_RAMP);
+      target = Math.sin((elapsed / SWEEP_PERIOD) * Math.PI * 2) * SWEEP_TRAVEL * ramp;
+    } else {
+      sweep.state = 'LOCK';
+    }
+
+    sweep.offset = lerp(sweep.offset, target, SWEEP_EASE);
+    stage.style.transform = `scale(${SWEEP_ZOOM}) translateX(${sweep.offset.toFixed(3)}%)`;
+  }
+
+  let currentDets = [];
+
+  async function detectLoop() {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    if (!vw || !vh) { setTimeout(detectLoop, 100); return; }
+
+    const scale = Math.min(1, 800 / vw);
+    const w = Math.round(vw * scale), h = Math.round(vh * scale);
+    if (detCanvas.width !== w) detCanvas.width = w;
+    if (detCanvas.height !== h) detCanvas.height = h;
+    detCtx.drawImage(video, 0, 0, w, h);
+
+    try {
+      const dets = await faceapi.detectAllFaces(detCanvas, opts);
+
+      const W = fxCanvas.width, H = fxCanvas.height;
+      const sorted = dets.sort((a, b) => b.score - a.score).slice(0, MAX_FACES);
+      currentDets = sorted.map(det => {
+        const d = det.box;
+        return {
+          x: ((w - d.x - d.width) / w) * W,
+          y: (d.y / h) * H,
+          w: (d.width / w) * W,
+          h: (d.height / h) * H,
+        };
+      });
+    } catch (e) {
+      console.warn('Detection error:', e);
+    }
+
+    const interval = currentDets.length > 8 ? 200 : 130;
+    setTimeout(detectLoop, interval);
+  }
+
+  function renderLoop() {
+    const W = fxCanvas.width, H = fxCanvas.height;
+    const t = now();
+
+    fxCtx.clearRect(0, 0, W, H);
+    hudCtx.clearRect(0, 0, W, H);
+
+    updateSweep(t, currentDets.length);
+    drawHUD(hudCtx, W, H, currentDets.length, t);
+
+    for (let i = 0; i < currentDets.length; i++) {
+      const det = currentDets[i];
+      const fd = getFaceData(i);
+
+      if (!fd.smoothBox) {
+        fd.smoothBox = { x: det.x, y: det.y, w: det.w, h: det.h };
+      } else {
+        const s = 0.25;
+        fd.smoothBox.x = lerp(fd.smoothBox.x, det.x, s);
+        fd.smoothBox.y = lerp(fd.smoothBox.y, det.y, s);
+        fd.smoothBox.w = lerp(fd.smoothBox.w, det.w, s);
+        fd.smoothBox.h = lerp(fd.smoothBox.h, det.h, s);
+      }
+
+      const b = fd.smoothBox;
+      drawFaceBox(fxCtx, b.x, b.y, b.w, b.h, fd, t);
+      drawFaceData(fxCtx, b.x, b.y, b.w, b.h, fd, t);
+    }
+
+    for (let i = currentDets.length; i < faceData.length; i++) {
+      if (faceData[i]) faceData[i].smoothBox = null;
+    }
+
+    requestAnimationFrame(renderLoop);
+  }
+
+  detectLoop();
+  renderLoop();
+})();
+</script>
+</body>
+</html>

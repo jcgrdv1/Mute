@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+body {
+  margin: 0;
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+.mute-glow {
+  text-shadow:
+    0 0 20px rgba(255, 165, 0, 0.6),
+    0 0 40px rgba(255, 165, 0, 0.3),
+    0 0 80px rgba(255, 165, 0, 0.15);
+}
+
+.mute-glow-sm {
+  text-shadow:
+    0 0 10px rgba(255, 165, 0, 0.4),
+    0 0 20px rgba(255, 165, 0, 0.2);
+}
+
+.mute-box-glow {
+  box-shadow:
+    0 0 20px rgba(255, 165, 0, 0.15),
+    0 0 40px rgba(255, 165, 0, 0.05);
+}
+
+.mute-box-glow-strong {
+  box-shadow:
+    0 0 30px rgba(255, 165, 0, 0.25),
+    0 0 60px rgba(255, 165, 0, 0.1);
+}
+
+.btn-mute {
+  @apply px-8 py-3 font-bold uppercase tracking-widest transition-all duration-300 rounded-sm;
+  background: #ffa500;
+  color: #0a0a0f;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.15em;
+}
+
+.btn-mute:hover {
+  background: #ffb830;
+  box-shadow:
+    0 0 25px rgba(255, 165, 0, 0.4),
+    0 0 50px rgba(255, 165, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-mute:active {
+  transform: translateY(0);
+}
+
+.btn-mute-outline {
+  @apply px-6 py-2 font-semibold uppercase tracking-widest transition-all duration-300 rounded-sm text-sm;
+  background: transparent;
+  color: #ffa500;
+  border: 1px solid rgba(255, 165, 0, 0.4);
+  cursor: pointer;
+}
+
+.btn-mute-outline:hover {
+  border-color: #ffa500;
+  background: rgba(255, 165, 0, 0.08);
+}
+
+.card-mute {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.input-mute {
+  @apply w-full rounded-sm px-3 py-2.5 md:px-4 md:py-3 text-white transition-all duration-200;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 2px;
+}
+
+.input-mute:focus {
+  outline: none;
+  border-color: rgba(255, 165, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 165, 0, 0.15);
+}
+
+.input-mute::placeholder {
+  color: #5a5a6a;
+}
+
+.divider-mute {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ffa500, transparent);
+  opacity: 0.3;
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.grayscale video {
+  filter: grayscale(1) contrast(1.2) brightness(1.05);
+}
+
+.glitch-filter video {
+  animation: glitch-shift 3s infinite;
+}
+
+.glitch-overlay {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 4px
+  );
+  animation: glitch-flicker 0.15s infinite;
+}
+
+@keyframes glitch-shift {
+  0%,
+  93%,
+  100% {
+    filter: none;
+  }
+  93.5% {
+    filter: hue-rotate(90deg);
+    transform: translate(2px, 0);
+  }
+  94% {
+    filter: hue-rotate(-90deg) saturate(2);
+    transform: translate(-3px, 1px);
+  }
+  94.5% {
+    filter: invert(0.1) hue-rotate(180deg);
+    transform: translate(1px, -1px);
+  }
+  95% {
+    filter: none;
+    transform: translate(0);
+  }
+  97% {
+    filter: saturate(1.5) contrast(1.2);
+    transform: translate(-1px, 0);
+  }
+  97.5% {
+    filter: hue-rotate(45deg);
+    transform: translate(2px, 1px);
+  }
+  98% {
+    filter: none;
+    transform: translate(0);
+  }
+}
+
+@keyframes glitch-flicker {
+  0% {
+    opacity: 0.03;
+  }
+  50% {
+    opacity: 0.06;
+  }
+  100% {
+    opacity: 0.03;
+  }
+}
+
+.glass-filter video {
+  filter: blur(6px) brightness(1.05) saturate(0.8);
+}
+
+.vision-filter video {
+  filter: saturate(0) contrast(1.4) brightness(0.9);
+  mix-blend-mode: normal;
+}
+
+.vision-filter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 255, 65, 0.06);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+  mix-blend-mode: color;
+}

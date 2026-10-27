@@ -1,0 +1,8 @@
+export default function Spinner({ text = 'Procesando...' }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-4">
+      <div className="w-8 h-8 border-2 border-mute-amber/30 border-t-mute-amber rounded-full animate-spin" />
+      <p className="text-mute-muted text-[11px] uppercase tracking-[0.2em]">{text}</p>
+    </div>
+  );
+}

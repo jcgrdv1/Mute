@@ -1,0 +1,23 @@
+{
+  "server_url": "https://mute.humanhood.mx",
+  "admin_password": "",
+  "terminals": [
+    {
+      "name": "Terminal 1",
+      "host": "192.168.100.240",
+      "port": 80,
+      "user": "admin",
+      "pass": "",
+      "assignment": "primary"
+    },
+    {
+      "name": "Terminal 2",
+      "host": "192.168.100.241",
+      "port": 80,
+      "user": "admin",
+      "pass": "",
+      "assignment": "all"
+    }
+  ],
+  "sync_interval": 15
+}
